@@ -1,4 +1,5 @@
 # LangChainPDFChat
+### About
 A simple streamlit app to chat with uploaded PDF using LangChain and OpenAI API.
 
 Usage:
