@@ -8,7 +8,7 @@ A simple streamlit app to chat with uploaded PDF using LangChain and OpenAI API.
 ```
    OPENAI_API_KEY={ OpenAI key }
 ```
-3. Run the following command:
+3. cd into the root directory and run the following command:
 ```
   streamlit run PDFChatApp.py
 ```
