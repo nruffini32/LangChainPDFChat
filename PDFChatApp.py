@@ -1,7 +1,6 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.llms import OpenAI
-from langchain.chains.question_answering import load_qa_chain
 import os
 from vars import openAI_key
 from langchain.vectorstores import Chroma
@@ -10,9 +9,12 @@ from langchain.chains import RetrievalQA
 from langchain.document_loaders import PyPDFLoader
 import shutil
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def main():
-    os.environ["OPENAI_API_KEY"] = openAI_key
+
     current_directory = os.getcwd()
 
     st.title("Talk to your PDF")
