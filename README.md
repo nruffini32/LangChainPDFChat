@@ -14,4 +14,7 @@ A simple streamlit app to chat with uploaded PDF using LangChain and OpenAI API.
 ```
 The streamlist app will open up in your default browser.
 
+### Usage
+From the browser you can now interact with gpt-3.5 which has access to your document.
+
 
