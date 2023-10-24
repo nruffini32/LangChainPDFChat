@@ -10,7 +10,7 @@ Usage:
 ```
    OPENAI_API_KEY={ OpenAI key }
 ```
-4. Run the following command:
+3. Run the following command:
 ```
   streamlit run PDFChatApp.py
 ```
