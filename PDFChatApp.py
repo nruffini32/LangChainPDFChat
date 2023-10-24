@@ -3,64 +3,97 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.llms import OpenAI
 from langchain.chains.question_answering import load_qa_chain
 import os
-from PyPDF2 import PdfReader
 from vars import openAI_key
 from langchain.vectorstores import Chroma
 from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
+from langchain.document_loaders import PyPDFLoader
+import shutil
 import streamlit as st
-
 
 def main():
     os.environ["OPENAI_API_KEY"] = openAI_key
+    current_directory = os.getcwd()
+
     st.title("Talk to your PDF")
 
+    c = st.empty()
+
+    # Uploading File
     pdf = st.file_uploader("Upload PDF", type="pdf")
 
     if pdf is not None:
-        # Have to use PdfReader to save memory
-            # Can spare memory to get metadata - https://stackoverflow.com/questions/76675978/how-can-i-use-langchain-document-loaders-pypdfloader-for-pdf-documents-uploade
-        pdf_reader = PdfReader(pdf)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        tmp_location = os.path.join(f'{current_directory}/pdf', pdf.name)
+        with open(tmp_location, "wb") as f:
+            f.write(pdf.read())
 
+        c.write("Uploading PDF...")
+        
+        loader = PyPDFLoader(tmp_location)
+        data = loader.load()
+
+
+        # Split file and upload embeddings to vector store
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size = 1000,
             chunk_overlap = 200
         )
-        chunks = text_splitter.split_text(text)
-        # st.write(chunks)
+        chunks = text_splitter.split_documents(data)
 
         embeddings = OpenAIEmbeddings()
+        DB_DIRECTORY = f"{current_directory}/vectorStoreDB"
 
-        vs = Chroma.from_texts(chunks, embedding=embeddings)
-        # st.write(vs.get(include=["embeddings"]))
+        if os.path.exists(DB_DIRECTORY):
+            shutil.rmtree(DB_DIRECTORY)
+
+        total_length = len(chunks)
+        batch_size = 64 
+
+        # Batch upload is for limitations with my OpenAIEmbeddings, can do regular loading 
+        for batch_start in range(0, total_length, batch_size):
+            batch_end = min(batch_start + batch_size, total_length)
+            batch_texts = chunks[batch_start:batch_end]
+            Chroma.from_documents(documents=batch_texts, embedding=embeddings, persist_directory=DB_DIRECTORY)
+            print(f"Inserted {batch_end}/{total_length} chunks")
+
+        
+
+        vectordb = Chroma(persist_directory=DB_DIRECTORY, embedding_function=embeddings)
+        retriever = vectordb.as_retriever()
 
         query = st.text_input("Talk to PDF:")
         if query:
-
             llm = OpenAI(temperature=0.6)
 
-            prompt_template = """
-            Use the following pieces of context to respond to the statement/question.
-            If you don't know the answer, say you don't know, don't try to make up an answer.
-
-            {context}
-
-            Statement/Question: {question}
+            # Create PromptTemplate
+            template = """
+            Use the following document to answer the question.
+            Document: {context}
+            Question: {question}
             """
             prompt = PromptTemplate(
                 input_variables=["context", "question"],
-                template=prompt_template,
-
+                template=template
             )
 
-            chain = load_qa_chain(llm=llm, chain_type="stuff", prompt=prompt)
+            # Create and run chain
+            chain_type_kwargs = {"prompt": prompt}
+            qa = RetrievalQA.from_chain_type(
+                llm=llm,
+                retriever=retriever,
+                chain_type_kwargs=chain_type_kwargs,
+                return_source_documents=True,
+            )
+            result = qa({"query": query})
 
-            docs = vs.similarity_search(query=query)
-            answer = chain({"input_documents": docs, "question": query}, return_only_outputs=True)
+            print(result)
 
-            st.write(answer["output_text"])
+            st.write(result["result"])
+
+            pages = [i.metadata["page"] for i in result["source_documents"]]
+
+            result_string = ', '.join(map(lambda i: str(i + 1), pages))
+            st.write("Pages: ", result_string)
 
 
 if __name__ == "__main__":
